@@ -25,11 +25,11 @@
 
 hw_timer_t *timer = NULL;
 
-void ARDUINO_ISR_ATTR pump_stop_isr()
+void ARDUINO_ISR_ATTR pump_start_isr()
 {
-  Serial.println("Stopping the pump");
-  // Turn off the pump
-  digitalWrite(GreenLedPin, LOW); 
+  Serial.println("Starting the pump");
+  // Turn on the pump
+  digitalWrite(GreenLedPin, HIGH); 
 }
 
 class SmokeMachine
@@ -42,9 +42,9 @@ public:
 
   void begin()
   {
-    attachInterrupt(PIN, std::bind(&SmokeMachine::isr, this), RISING);
+    attachInterrupt(PIN, std::bind(&SmokeMachine::main_isr, this), RISING);
+    attachInterrupt(PIN, std::bind(&SmokeMachine::pump_stop_isr, this), FALLING);
     Serial.printf("Started SmokeMachine interrupt on pin %d\n", PIN);
-  
   }
 
   ~SmokeMachine()
@@ -52,12 +52,12 @@ public:
     detachInterrupt(PIN);
   }
 
+  
   bool check_temperature()
   {
     // Read temperature from sensor
-    // temperature = random(0, 500);
     temperature = analogRead(HeatingElementPin);
-
+    
     // Check if temperature is above threshold
     if (temperature > threshold)
     {
@@ -70,28 +70,29 @@ public:
       return false;
     }
   }
-
+  
   void start_heater()
   {
     // Turn on heater
     digitalWrite(RedLedPin, HIGH);
     heater_on = true;
   }
-
+  
   void stop_heater()
   {
     // Turn off heater
     digitalWrite(RedLedPin, LOW);
     heater_on = false;
   }
-
-  void start_pump()
+  
+  void ARDUINO_ISR_ATTR pump_stop_isr()
   {
-    // Turn on the pump
-    digitalWrite(GreenLedPin, HIGH);
+    Serial.println("Stopping the pump");
+    // Turn off the pump
+    digitalWrite(GreenLedPin, LOW); 
   }
 
-  void ARDUINO_ISR_ATTR isr()
+  void ARDUINO_ISR_ATTR main_isr()
   {
     pressed = true;
     numberKeyPresses++;
@@ -103,6 +104,7 @@ public:
     {
       // Turn on a status LED to indicate the machine is ready
       digitalWrite(YellowLedPin, HIGH);
+
       // turn off heater if is on
       if (heater_on)
       {
@@ -130,10 +132,7 @@ public:
 
       if (temp_ready)
       {
-        // Turn on the pump
-        start_pump();
-
-        // start timer based ISR to turn off the pump later
+        // start timer based ISR to turn on the pump later
         timerRestart(timer);
         timerAlarm(timer, 1500, false, 0);
       }
@@ -175,7 +174,7 @@ void setup()
   machine.begin();
 
   timer = timerBegin(1000);
-  timerAttachInterrupt(timer, &pump_stop_isr);
+  timerAttachInterrupt(timer, &pump_start_isr);
   // timerAlarm(timer, 10, false, 0);
 
   
