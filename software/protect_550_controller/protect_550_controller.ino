@@ -16,14 +16,14 @@
 #include <FunctionalInterrupt.h>
 #include "esp_system.h"
 
-#define PotentiometerPin 4
+#define UserButtonPin 3
+#define VolumeCtrlPin 5
+#define TemperatureSensePin 6
 #define ZeroCrossPin1 22
 #define ZeroCrossPin2 23
-#define RedLedPin 21
-#define YellowLedPin 20
 #define GreenLedPin 19
-#define HeatingElementPin 6
-#define UserButtonPin 3
+#define YellowLedPin 20
+#define RedLedPin 21
 
 hw_timer_t *timer = NULL;
 
@@ -55,14 +55,14 @@ public:
   ~SmokeMachine()
   {
     detachInterrupt(risingPin);
+
     detachInterrupt(fallingPin);
+    temperature = analogRead(TemperatureSensePin);
   }
 
   bool check_temperature()
   {
     // Read temperature from sensor
-    temperature = analogRead(HeatingElementPin);
-
     // Check if temperature is above threshold
     if (temperature > threshold)
     {
@@ -94,14 +94,15 @@ public:
   {
     int delayValue = 0;
     // Read the potentiometer value
-    potValue = analogRead(PotentiometerPin);
+    potValue = analogRead(VolumeCtrlPin);
 
     // The max potentiometer value depends on the voltage read when the potmeter 
     // is turned to max. 
     int potMax = 3665;
 
     // Map the potentiometer value to one of 4 values.
-    delayValue = map(potValue, 0, potMax, 0, 3);
+    // The +1 is to get 4 equal areas for the 0-3665 range.
+    delayValue = map(potValue, 0, potMax + 1, 0, 4);
 
     // set delay between 500 and 2000 milliseconds
     // Serial.printf("Potmeter reads: %u -> delay: %u\n", potValue, (delayValue+1)*500);
