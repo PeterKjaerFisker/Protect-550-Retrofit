@@ -55,24 +55,30 @@ public:
   ~SmokeMachine()
   {
     detachInterrupt(risingPin);
-
     detachInterrupt(fallingPin);
-    temperature = analogRead(TemperatureSensePin);
   }
-
-  bool check_temperature()
+  
+  bool check_temperature(bool currently_ready = false)
   {
     // Read temperature from sensor
-    // Check if temperature is above threshold
-    if (temperature > threshold)
+    temperature = analogRead(TemperatureSensePin);
+
+    // Check if temperature is above threshold and machine is not ready
+    // Then set it to ready
+    if ((temperature > heat_threshold) && !currently_ready)
     {
       // Serial.printf("Temperature is above threshold: %u\n", temperature);
       return true;
     }
-    else
+    else if ((temperature < pump_threshold) && currently_ready)
     {
       // Serial.printf("Temperature is below threshold: %u\n", temperature);
       return false;
+    }
+    else
+    {
+      // Serial.printf("Temperature is below threshold: %u\n", temperature);
+      return currently_ready;
     }
   }
 
@@ -107,7 +113,7 @@ public:
     // set delay between 500 and 2000 milliseconds
     // Serial.printf("Potmeter reads: %u -> delay: %u\n", potValue, (delayValue+1)*500);
     return (delayValue+1)*500;
-
+  }
 
   void ARDUINO_ISR_ATTR pump_stop_isr()
   {
@@ -122,29 +128,17 @@ public:
     numberKeyPresses++;
     // Serial.printf("isr activated");
     // Check if temperature is above threshold so machine is ready
-    bool temp_ready = check_temperature();
+    ready_state = check_temperature(ready_state);
+    digitalWrite(YellowLedPin, ready_state ? HIGH : LOW);
 
-    if (temp_ready)
+    // turn off heater if is on
+    if (temperature > heat_threshold)
     {
-      // Turn on a status LED to indicate the machine is ready
-      digitalWrite(YellowLedPin, HIGH);
-
-      // turn off heater if is on
-      if (heater_on)
-      {
-        stop_heater();
-      }
+      stop_heater();
     }
     else
     {
-      // Turn off the status LED to indicate the machine is not ready
-      digitalWrite(YellowLedPin, LOW);
-
-      // Turn on heater if is off
-      if (!heater_on)
-      {
-        start_heater();
-      }
+      start_heater();
     }
 
     // Serial.printf("user button state is: %u\n", digitalRead(UserButtonPin));
@@ -154,7 +148,7 @@ public:
       // If the button is pressed and the machine is ready, turn on the machine
       Serial.println("User pressing button.");
 
-      if (temp_ready)
+      if (ready_state == true)
       {
         int pump_delay = get_pump_delay();
         // start timer based ISR to turn on the pump later
@@ -180,8 +174,10 @@ private:
   volatile bool pressed;
   uint16_t temperature = 0;
   uint16_t potValue = 0;
-  uint16_t threshold = 500;
+  uint16_t heat_threshold = 2500;
+  uint16_t pump_threshold = 1500;
   bool heater_on = false;
+  bool ready_state = false;
 };
 
 SmokeMachine machine(ZeroCrossPin1, ZeroCrossPin2);
