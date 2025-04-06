@@ -38,39 +38,39 @@ class SmokeMachine
 {
 public:
   SmokeMachine(uint8_t risingPin, uint8_t fallingPin)
-  : risingPin(risingPin)
-  , fallingPin(fallingPin)
+  : mRisingPin(risingPin)
+  , mFallingpin(fallingPin)
   {
-    pinMode(risingPin, INPUT_PULLUP);
-    pinMode(fallingPin, INPUT_PULLUP);
+    pinMode(mRisingPin, INPUT_PULLUP);
+    pinMode(mFallingpin, INPUT_PULLUP);
   };
 
   void begin()
   {
-    attachInterrupt(risingPin, std::bind(&SmokeMachine::main_isr, this), RISING);
-    attachInterrupt(fallingPin, std::bind(&SmokeMachine::pump_stop_isr, this), FALLING);
-    Serial.printf("Started SmokeMachine interrupt on pins %d and %d\n", risingPin, fallingPin);
+    attachInterrupt(mRisingPin, std::bind(&SmokeMachine::main_isr, this), RISING);
+    attachInterrupt(mFallingpin, std::bind(&SmokeMachine::pump_stop_isr, this), FALLING);
+    Serial.printf("Started SmokeMachine interrupt on pins %d and %d\n", mRisingPin, mFallingpin);
   }
 
   ~SmokeMachine()
   {
-    detachInterrupt(risingPin);
-    detachInterrupt(fallingPin);
+    detachInterrupt(mRisingPin);
+    detachInterrupt(mFallingpin);
   }
   
   bool check_temperature(bool currently_ready = false)
   {
     // Read temperature from sensor
-    temperature = analogRead(TemperatureSensePin);
+    mMeasuredTemp = analogRead(TemperatureSensePin);
 
     // Check if temperature is above threshold and machine is not ready
     // Then set it to ready
-    if ((temperature > heat_threshold) && !currently_ready)
+    if ((mMeasuredTemp > mHeatThreshold) && !currently_ready)
     {
       // Serial.printf("Temperature is above threshold: %u\n", temperature);
       return true;
     }
-    else if ((temperature < pump_threshold) && currently_ready)
+    else if ((mMeasuredTemp < mPumpThreshold) && currently_ready)
     {
       // Serial.printf("Temperature is below threshold: %u\n", temperature);
       return false;
@@ -86,21 +86,21 @@ public:
   {
     // Turn on heater
     digitalWrite(RedLedPin, HIGH);
-    heater_on = true;
+    // start_heater();
   }
-
+  
   void stop_heater()
   {
     // Turn off heater
     digitalWrite(RedLedPin, LOW);
-    heater_on = false;
+    // stop_heater();
   }
 
   int get_pump_delay()
   {
     int delayValue = 0;
     // Read the potentiometer value
-    potValue = analogRead(VolumeCtrlPin);
+    mMeasuredVolume = analogRead(VolumeCtrlPin);
 
     // The max potentiometer value depends on the voltage read when the potmeter 
     // is turned to max. 
@@ -108,10 +108,10 @@ public:
 
     // Map the potentiometer value to one of 4 values.
     // The +1 is to get 4 equal areas for the 0-3665 range.
-    delayValue = map(potValue, 0, potMax + 1, 0, 4);
+    delayValue = map(mMeasuredVolume, 0, potMax + 1, 0, 4);
 
     // set delay between 500 and 2000 milliseconds
-    // Serial.printf("Potmeter reads: %u -> delay: %u\n", potValue, (delayValue+1)*500);
+    // Serial.printf("Potmeter reads: %u -> delay: %u\n", mMeasuredVolume, (delayValue+1)*500);
     return (delayValue+1)*500;
   }
 
@@ -128,11 +128,11 @@ public:
     numberKeyPresses++;
     // Serial.printf("isr activated");
     // Check if temperature is above threshold so machine is ready
-    ready_state = check_temperature(ready_state);
-    digitalWrite(YellowLedPin, ready_state ? HIGH : LOW);
+    mReadyState = check_temperature(mReadyState);
+    digitalWrite(YellowLedPin, mReadyState ? HIGH : LOW);
 
     // turn off heater if is on
-    if (temperature > heat_threshold)
+    if (mMeasuredTemp > mHeatThreshold)
     {
       stop_heater();
     }
@@ -148,7 +148,7 @@ public:
       // If the button is pressed and the machine is ready, turn on the machine
       Serial.println("User pressing button.");
 
-      if (ready_state == true)
+      if (mReadyState == true)
       {
         int pump_delay = get_pump_delay();
         // start timer based ISR to turn on the pump later
@@ -162,22 +162,22 @@ public:
   {
     if (pressed)
     {
-      Serial.printf("SmokeMachine with risingPin on pin %u has been pressed %lu times\n", risingPin, numberKeyPresses);
+      Serial.printf("SmokeMachine with risingPin on pin %u has been pressed %lu times\n", mRisingPin, numberKeyPresses);
       pressed = false;
     }
   }
 
 private:
-  const uint8_t risingPin;
-  const uint8_t fallingPin;
   volatile uint32_t numberKeyPresses;
   volatile bool pressed;
-  uint16_t temperature = 0;
-  uint16_t potValue = 0;
-  uint16_t heat_threshold = 2500;
-  uint16_t pump_threshold = 1500;
-  bool heater_on = false;
-  bool ready_state = false;
+  
+  bool mReadyState = false;
+  const uint8_t mRisingPin;
+  const uint8_t mFallingpin;
+  uint16_t mMeasuredTemp = 0;
+  uint16_t mMeasuredVolume = 0;
+  uint16_t mHeatThreshold = 2500;
+  uint16_t mPumpThreshold = 1500;
 };
 
 SmokeMachine machine(ZeroCrossPin1, ZeroCrossPin2);
