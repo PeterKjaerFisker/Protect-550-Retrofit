@@ -29,7 +29,7 @@ hw_timer_t *timer = NULL;
 
 void ARDUINO_ISR_ATTR pump_start_isr()
 {
-  Serial.println("Starting the pump");
+  // Serial.println("Starting the pump");
   // Turn on the pump
   digitalWrite(GreenLedPin, HIGH);
 }
@@ -63,6 +63,7 @@ public:
     // Read temperature from sensor
     mMeasuredTemp = analogRead(TemperatureSensePin);
 
+    // Serial.printf("Temperature is: %u, HeatThreshold is: %u, PumpThreshold is: %u, ReadyState is: %s\n", mMeasuredTemp, mHeatThreshold, mPumpThreshold, currently_ready ? "true" : "false");
     // Check if temperature is above threshold and machine is not ready
     // Then set it to ready
     if ((mMeasuredTemp > mHeatThreshold) && !currently_ready)
@@ -101,6 +102,7 @@ public:
     int delayValue = 0;
     // Read the potentiometer value
     mMeasuredVolume = analogRead(VolumeCtrlPin);
+    // Serial.println(mMeasuredVolume);
 
     // The max potentiometer value depends on the voltage read when the potmeter 
     // is turned to max. 
@@ -111,13 +113,16 @@ public:
     delayValue = map(mMeasuredVolume, 0, potMax + 1, 0, 4);
 
     // set delay between 500 and 2000 milliseconds
-    // Serial.printf("Potmeter reads: %u -> delay: %u\n", mMeasuredVolume, (delayValue+1)*500);
-    return (delayValue+1)*500;
+    delayValue = (delayValue+1)*500;
+    
+    // Serial.printf("delay: %u\n", delayValue);
+    // Serial.printf("Potmeter reads: %u\n", temp);
+    return delayValue;
   }
 
   void ARDUINO_ISR_ATTR pump_stop_isr()
   {
-    Serial.println("Stopping the pump");
+    // Serial.println("Stopping the pump");
     // Turn off the pump
     digitalWrite(GreenLedPin, LOW);
   }
