@@ -113,7 +113,7 @@ public:
     delayValue = map(mMeasuredVolume, 0, potMax + 1, 0, 4);
 
     // set delay between 500 and 2000 milliseconds
-    delayValue = (delayValue+1)*500;
+    delayValue = (delayValue+1)*2;
     
     // Serial.printf("delay: %u\n", delayValue);
     // Serial.printf("Potmeter reads: %u\n", temp);
