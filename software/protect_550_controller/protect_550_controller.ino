@@ -61,24 +61,25 @@ public:
   bool check_temperature(bool currently_ready = false)
   {
     // Read temperature from sensor
-    mMeasuredTemp = analogRead(TemperatureSensePin);
+    uint16_t val = analogRead(TemperatureSensePin);
+    mMeasuredTemp = val * mHeatMagic; // Dont worry about it, ChatGPT made it.
 
-    // Serial.printf("Temperature is: %u, HeatThreshold is: %u, PumpThreshold is: %u, ReadyState is: %s\n", mMeasuredTemp, mHeatThreshold, mPumpThreshold, currently_ready ? "true" : "false");
+    Serial.printf("Val: %u, Temperature is: %u, HeatThreshold is: %u, PumpThreshold is: %u, ReadyState is: %s\n", val, mMeasuredTemp, mHeatThreshold, mPumpThreshold, currently_ready ? "true" : "false");
     // Check if temperature is above threshold and machine is not ready
     // Then set it to ready
     if ((mMeasuredTemp > mHeatThreshold) && !currently_ready)
     {
-      // Serial.printf("Temperature is above threshold: %u\n", temperature);
+      Serial.printf("Temperature is above threshold: %u\n", mMeasuredTemp);
       return true;
     }
     else if ((mMeasuredTemp < mPumpThreshold) && currently_ready)
     {
-      // Serial.printf("Temperature is below threshold: %u\n", temperature);
+      Serial.printf("Temperature is below threshold: %u\n", mMeasuredTemp);
       return false;
     }
     else
     {
-      // Serial.printf("Temperature is below threshold: %u\n", temperature);
+      Serial.printf("Temperature is below threshold: %u\n", mMeasuredTemp);
       return currently_ready;
     }
   }
@@ -181,8 +182,14 @@ private:
   const uint8_t mFallingpin;
   uint16_t mMeasuredTemp = 0;
   uint16_t mMeasuredVolume = 0;
-  uint16_t mHeatThreshold = 2500;
   uint16_t mPumpThreshold = 1500;
+  const uint16_t mHeatThreshold = 270;
+  const double mHeatThresholdVoltage = 0.0147; // 14.7 mV @ mHeatThreshold
+  const double mHeatThermoGain = 231; // 10K and 220K = 221 ;)
+  const double mHeatThermoSlope = mHeatThresholdVoltage/mHeatThreshold; 
+  const double mAdcMaxStep = 4095;
+  const double mAdcMaxVoltage = 3.3; // 3.3 V
+  const double mHeatMagic = ( mAdcMaxVoltage / (mAdcMaxStep * mHeatThermoSlope) ) / mHeatThermoGain; // Thanks ChatGPT
 };
 
 SmokeMachine machine(ZeroCrossPin1, ZeroCrossPin2);
@@ -195,6 +202,8 @@ void setup()
   pinMode(GreenLedPin, OUTPUT);
 
   pinMode(UserButtonPin, INPUT_PULLUP);
+
+  analogSetAttenuation(ADC_ATTENDB_MAX);
 
   Serial.println("Starting Functional Interrupt example.");
   machine.begin();
