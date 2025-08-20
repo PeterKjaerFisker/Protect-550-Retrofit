@@ -61,10 +61,9 @@ public:
   bool check_temperature(bool currently_ready = false)
   {
     // Read temperature from sensor
-    uint16_t val = analogRead(TemperatureSensePin);
-    mMeasuredTemp = val * mHeatMagic; // Dont worry about it, ChatGPT made it.
+    uint16_t val = analogReadMilliVolts(TemperatureSensePin);
+    mMeasuredTemp = val * mMillivoltToCelcius;
 
-    Serial.printf("Val: %u, Temperature is: %u, HeatThreshold is: %u, PumpThreshold is: %u, ReadyState is: %s\n", val, mMeasuredTemp, mHeatThreshold, mPumpThreshold, currently_ready ? "true" : "false");
     // Check if temperature is above threshold and machine is not ready
     // Then set it to ready
     if ((mMeasuredTemp > mHeatThreshold) && !currently_ready)
@@ -132,7 +131,7 @@ public:
   {
     pressed = true;
     numberKeyPresses++;
-    // Serial.printf("isr activated");
+
     // Check if temperature is above threshold so machine is ready
     mReadyState = check_temperature(mReadyState);
     digitalWrite(YellowLedPin, mReadyState ? HIGH : LOW);
@@ -182,14 +181,13 @@ private:
   const uint8_t mFallingpin;
   uint16_t mMeasuredTemp = 0;
   uint16_t mMeasuredVolume = 0;
-  uint16_t mPumpThreshold = 1500;
-  const uint16_t mHeatThreshold = 270;
-  const double mHeatThresholdVoltage = 0.0147; // 14.7 mV @ mHeatThreshold
+  uint16_t mPumpThreshold = 200; // 200 degrees Celsius
+  const uint16_t mHeatThreshold = 270; // 270 degrees Celsius
+
   const double mHeatThermoGain = 231; // 10K and 220K = 221 ;)
-  const double mHeatThermoSlope = mHeatThresholdVoltage/mHeatThreshold; 
-  const double mAdcMaxStep = 4095;
-  const double mAdcMaxVoltage = 3.3; // 3.3 V
-  const double mHeatMagic = ( mAdcMaxVoltage / (mAdcMaxStep * mHeatThermoSlope) ) / mHeatThermoGain; // Thanks ChatGPT
+  const uint16_t mRefTemp = 270;  // 270 degrees Celsius measured as ref
+  const double mRefTempVoltage = 14.7; // 14.7 mV @ mHeatThreshold
+  const double mMillivoltToCelcius = mRefTemp / ( mRefTempVoltage * mHeatThermoGain); //
 };
 
 SmokeMachine machine(ZeroCrossPin1, ZeroCrossPin2);
