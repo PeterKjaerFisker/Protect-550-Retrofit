@@ -21,9 +21,9 @@
 #define TemperatureSensePin 6
 #define ZeroCrossPin1 22
 #define ZeroCrossPin2 23
-#define GreenLedPin 19
+#define GreenLedPin 21
 #define YellowLedPin 20
-#define RedLedPin 21
+#define RedLedPin 19
 
 hw_timer_t *timer = NULL;
 volatile bool pump_start_flag = false;
@@ -53,15 +53,15 @@ public:
   : mRisingPin(risingPin)
   , mFallingpin(fallingPin)
   {
-    pinMode(mRisingPin, INPUT_PULLUP);
-    pinMode(mFallingpin, INPUT_PULLUP);
+    pinMode(mRisingPin, INPUT_PULLDOWN);
+    pinMode(mFallingpin, INPUT_PULLDOWN);
   };
 
   void begin()
   {
     attachInterrupt(mRisingPin, rising_isr_handler, RISING);
     attachInterrupt(mFallingpin, falling_isr_handler, FALLING);
-    Serial.printf("Started SmokeMachine interrupt on pins %d and %d\n", mRisingPin, mFallingpin);
+    Serial.printf("Started SmokeMachine with interrupts on pins %d and %d\n", mRisingPin, mFallingpin);
   }
 
   ~SmokeMachine()
@@ -152,7 +152,6 @@ void setup()
 
   analogSetAttenuation(ADC_11db);
 
-  Serial.println("Starting Functional Interrupt example.");
   machine.begin();
 
   timer = timerBegin(1000);
