@@ -26,12 +26,24 @@
 #define RedLedPin 21
 
 hw_timer_t *timer = NULL;
+volatile bool pump_start_flag = false;
+volatile bool pump_stop_flag = false;
+volatile bool main_isr_flag = false;
 
-void ARDUINO_ISR_ATTR pump_start_isr()
+// Global ISR handlers
+void IRAM_ATTR pump_start_isr()
 {
-  // Serial.println("Starting the pump");
-  // Turn on the pump
-  digitalWrite(GreenLedPin, HIGH);
+  pump_start_flag = true;
+}
+
+void IRAM_ATTR rising_isr_handler() 
+{
+  main_isr_flag = true;
+}
+
+void IRAM_ATTR falling_isr_handler() 
+{
+  pump_stop_flag = true;
 }
 
 class SmokeMachine
@@ -47,8 +59,8 @@ public:
 
   void begin()
   {
-    attachInterrupt(mRisingPin, std::bind(&SmokeMachine::main_isr, this), RISING);
-    attachInterrupt(mFallingpin, std::bind(&SmokeMachine::pump_stop_isr, this), FALLING);
+    attachInterrupt(mRisingPin, rising_isr_handler, RISING);
+    attachInterrupt(mFallingpin, falling_isr_handler, FALLING);
     Serial.printf("Started SmokeMachine interrupt on pins %d and %d\n", mRisingPin, mFallingpin);
   }
 
@@ -57,12 +69,11 @@ public:
     detachInterrupt(mRisingPin);
     detachInterrupt(mFallingpin);
   }
-  
+
   bool check_temperature(bool currently_ready = false)
   {
     // Read temperature from sensor
-    uint16_t val = analogReadMilliVolts(TemperatureSensePin);
-    mMeasuredTemp = val * mMillivoltToCelcius;
+    mMeasuredTemp = analogReadMilliVolts(TemperatureSensePin) * mMillivoltToCelcius;
 
     // Check if temperature is above threshold and machine is not ready
     // Then set it to ready
@@ -85,104 +96,41 @@ public:
 
   void start_heater()
   {
-    // Turn on heater
     digitalWrite(RedLedPin, HIGH);
-    // start_heater();
   }
-  
+
   void stop_heater()
   {
-    // Turn off heater
     digitalWrite(RedLedPin, LOW);
-    // stop_heater();
   }
 
   int get_pump_delay()
   {
     int delayValue = 0;
-    // Read the potentiometer value
-    mMeasuredVolume = analogRead(VolumeCtrlPin);
+    uint16_t measuredVolume = analogRead(VolumeCtrlPin);
     // Serial.println(mMeasuredVolume);
-
-    // The max potentiometer value depends on the voltage read when the potmeter 
-    // is turned to max. 
-    int potMax = 3665;
 
     // Map the potentiometer value to one of 4 values.
     // The +1 is to get 4 equal areas for the 0-3665 range.
-    delayValue = map(mMeasuredVolume, 0, potMax + 1, 0, 4);
+    delayValue = map(measuredVolume, 0, mPotMax + 1, 0, 4);
 
     // set delay between 500 and 2000 milliseconds
     delayValue = (delayValue+1)*2;
     
     // Serial.printf("delay: %u\n", delayValue);
-    // Serial.printf("Potmeter reads: %u\n", temp);
     return delayValue;
   }
 
-  void ARDUINO_ISR_ATTR pump_stop_isr()
-  {
-    // Serial.println("Stopping the pump");
-    // Turn off the pump
-    digitalWrite(GreenLedPin, LOW);
-  }
-
-  void ARDUINO_ISR_ATTR main_isr()
-  {
-    pressed = true;
-    numberKeyPresses++;
-
-    // Check if temperature is above threshold so machine is ready
-    mReadyState = check_temperature(mReadyState);
-    digitalWrite(YellowLedPin, mReadyState ? HIGH : LOW);
-
-    // turn off heater if is on
-    if (mMeasuredTemp > mHeatThreshold)
-    {
-      stop_heater();
-    }
-    else
-    {
-      start_heater();
-    }
-
-    // Serial.printf("user button state is: %u\n", digitalRead(UserButtonPin));
-    // Check if the button is pressed
-    if (digitalRead(UserButtonPin) == LOW)
-    {
-      // If the button is pressed and the machine is ready, turn on the machine
-      Serial.println("User pressing button.");
-
-      if (mReadyState == true)
-      {
-        int pump_delay = get_pump_delay();
-        // start timer based ISR to turn on the pump later
-        timerRestart(timer);
-        timerAlarm(timer, pump_delay, false, 0);
-      }
-    }
-  }
-
-  void checkPressed()
-  {
-    if (pressed)
-    {
-      Serial.printf("SmokeMachine with risingPin on pin %u has been pressed %lu times\n", mRisingPin, numberKeyPresses);
-      pressed = false;
-    }
-  }
+  // Make all shared variables volatile
+  volatile bool mReadyState = false;
+  volatile uint16_t mMeasuredTemp = 0;
+  const uint16_t mHeatThreshold = 270; // 270 degrees Celsius
 
 private:
-  volatile uint32_t numberKeyPresses;
-  volatile bool pressed;
-  
-  bool mReadyState = false;
   const uint8_t mRisingPin;
   const uint8_t mFallingpin;
-  uint16_t mMeasuredTemp = 0;
-  uint16_t mMeasuredVolume = 0;
   uint16_t mPumpThreshold = 200; // 200 degrees Celsius
-  const uint16_t mHeatThreshold = 270; // 270 degrees Celsius
+  uint16_t mPotMax = 3665; // Value corresponding to max volume setting on potmeter
 
   const double mHeatThermoGain = 231; // 10K and 220K = 221 ;)
   const uint16_t mRefTemp = 270;  // 270 degrees Celsius measured as ref
@@ -190,6 +138,7 @@ private:
   const double mMillivoltToCelcius = mRefTemp / ( mRefTempVoltage * mHeatThermoGain); //
 };
 
+// Global instance
 SmokeMachine machine(ZeroCrossPin1, ZeroCrossPin2);
 
 void setup()
@@ -201,7 +150,7 @@ void setup()
 
   pinMode(UserButtonPin, INPUT_PULLUP);
 
-  analogSetAttenuation(ADC_ATTENDB_MAX);
+  analogSetAttenuation(ADC_11db);
 
   Serial.println("Starting Functional Interrupt example.");
   machine.begin();
@@ -214,5 +163,45 @@ void setup()
 
 void loop()
 {
-  // machine.checkPressed();
+  // Handle pump start event (from timer ISR)
+  if (pump_start_flag) {
+    digitalWrite(GreenLedPin, HIGH);
+    pump_start_flag = false;
+  }
+  // Handle pump stop event (from falling edge ISR)
+  if (pump_stop_flag) {
+    digitalWrite(GreenLedPin, LOW);
+    pump_stop_flag = false;
+  }
+
+  // Handle main logic from main_isr (rising edge ISR)
+  if (main_isr_flag) {
+    // All heavy work is done here, not in ISR!
+    machine.mReadyState = machine.check_temperature(machine.mReadyState);
+    digitalWrite(YellowLedPin, machine.mReadyState ? HIGH : LOW);
+
+    // turn off heater if temp is above threshold
+    if (machine.mMeasuredTemp > machine.mHeatThreshold)
+    {
+      machine.stop_heater();
+    }
+    else
+    {
+      machine.start_heater();
+    }
+
+    if (digitalRead(UserButtonPin) == LOW)
+    {
+      Serial.println("User pressing button.");
+
+      if (machine.mReadyState == true)
+      {
+        int pump_delay = machine.get_pump_delay();
+        // start timer based ISR to turn on the pump later
+        timerRestart(timer);
+        timerAlarm(timer, pump_delay, false, 0);
+      }
+    }
+    main_isr_flag = false;
+  }
 }
