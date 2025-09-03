@@ -89,7 +89,7 @@ public:
     }
     else
     {
-      Serial.printf("Temperature is below threshold: %u\n", mMeasuredTemp);
+      Serial.printf("Temperature is within thresholds: %u\n", mMeasuredTemp);
       return currently_ready;
     }
   }
@@ -195,6 +195,7 @@ void loop()
 
       if (machine.mReadyState == true)
       {
+        Serial.println("Starting the pump.");
         int pump_delay = machine.get_pump_delay();
         // start timer based ISR to turn on the pump later
         timerRestart(timer);
